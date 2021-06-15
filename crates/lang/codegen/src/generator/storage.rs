@@ -30,12 +30,7 @@ use syn::spanned::Spanned as _;
 pub struct Storage<'a> {
     contract: &'a ir::Contract,
 }
-
-impl<'a> AsRef<ir::Contract> for Storage<'_> {
-    fn as_ref(&self) -> &ir::Contract {
-        self.contract
-    }
-}
+impl_as_ref_for_generator!(Storage);
 
 impl GenerateCode for Storage<'_> {
     fn generate_code(&self) -> TokenStream2 {
@@ -48,7 +43,7 @@ impl GenerateCode for Storage<'_> {
         } else {
             None
         };
-        let cfg = self.generate_code_using::<generator::CrossCallingConflictCfg>();
+        let cfg = self.generate_code_using::<generator::NotAsDependencyCfg>();
         quote_spanned!(storage_span =>
             #access_env_impls
             #storage_struct
@@ -70,7 +65,7 @@ impl GenerateCode for Storage<'_> {
 impl Storage<'_> {
     fn generate_access_env_trait_impls(&self) -> TokenStream2 {
         let storage_ident = &self.contract.module().storage().ident();
-        let cfg = self.generate_code_using::<generator::CrossCallingConflictCfg>();
+        let cfg = self.generate_code_using::<generator::NotAsDependencyCfg>();
         quote! {
             #cfg
             const _: () = {
@@ -100,7 +95,7 @@ impl Storage<'_> {
         let ident = &storage.ident();
         let attrs = &storage.attrs();
         let fields = storage.fields();
-        let cfg = self.generate_code_using::<generator::CrossCallingConflictCfg>();
+        let cfg = self.generate_code_using::<generator::NotAsDependencyCfg>();
         quote_spanned!( span =>
             #cfg
             #(#attrs)*

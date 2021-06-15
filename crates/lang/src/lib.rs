@@ -65,7 +65,7 @@ pub use self::{
         EmitEvent,
     },
     traits::{
-        CheckedInkTrait,
+        TraitImplementer,
         Constructor,
         FnInput,
         FnOutput,
@@ -74,6 +74,13 @@ pub use self::{
         ImpliesReturn,
         MessageMut,
         MessageRef,
+        NoConcreteImplementer,
+        TraitCallBuilder,
+        TraitCallForwarder,
+        TraitCallForwarderRegistry,
+        TraitUniqueId,
+        TraitCallForwarderFor,
+        TraitModulePath,
         True,
     },
 };

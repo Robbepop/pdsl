@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::GenerateCode;
+use super::enforced_error::EnforcedErrors;
+use crate::{
+    generator,
+    GenerateCode,
+    GenerateCodeUsing as _,
+};
 use derive_more::From;
 use heck::CamelCase as _;
 use impl_serde::serialize as serde_hex;
@@ -29,65 +34,12 @@ use quote::{
 };
 use syn::spanned::Spanned as _;
 
-/// Errors which may occur when forwarding a call is not allowed.
-///
-/// We insert markers for these errors in the generated contract code.
-/// This is necessary since we can't check these errors at compile time
-/// of the contract.
-/// `cargo-contract` checks the contract code for these error markers
-/// when building a contract and fails if it finds markers.
-#[derive(scale::Encode, scale::Decode)]
-pub enum EnforcedErrors {
-    /// The below error represents calling a `&mut self` message in a context that
-    /// only allows for `&self` messages. This may happen under certain circumstances
-    /// when ink! trait implementations are involved with long-hand calling notation.
-    #[codec(index = 1)]
-    CannotCallTraitMessage {
-        /// The trait that defines the called message.
-        trait_ident: String,
-        /// The name of the called message.
-        message_ident: String,
-        /// The selector of the called message.
-        message_selector: [u8; 4],
-        /// Is `true` if the `self` receiver of the ink! message is `&mut self`.
-        message_mut: bool,
-    },
-    /// The below error represents calling a constructor in a context that does
-    /// not allow calling it. This may happen when the constructor defined in a
-    /// trait is cross-called in another contract.
-    /// This is not allowed since the contract to which a call is forwarded must
-    /// already exist at the point when the call to it is made.
-    #[codec(index = 2)]
-    CannotCallTraitConstructor {
-        /// The trait that defines the called constructor.
-        trait_ident: String,
-        /// The name of the called constructor.
-        constructor_ident: String,
-        /// The selector of the called constructor.
-        constructor_selector: [u8; 4],
-    },
-}
-
-/// Generates `#[cfg(..)]` code to guard against compilation under `ink-as-dependency`.
-#[derive(From)]
-pub struct CrossCallingConflictCfg<'a> {
-    contract: &'a ir::Contract,
-}
-
-impl GenerateCode for CrossCallingConflictCfg<'_> {
-    fn generate_code(&self) -> TokenStream2 {
-        if self.contract.config().is_compile_as_dependency_enabled() {
-            return quote! { #[cfg(feature = "__ink_DO_NOT_COMPILE")] }
-        }
-        quote! { #[cfg(not(feature = "ink-as-dependency"))] }
-    }
-}
-
 /// Generates code for using this ink! contract as a dependency.
 #[derive(From)]
 pub struct CrossCalling<'a> {
     contract: &'a ir::Contract,
 }
+impl_as_ref_for_generator!(CrossCalling);
 
 impl GenerateCode for CrossCalling<'_> {
     fn generate_code(&self) -> TokenStream2 {
@@ -105,17 +57,6 @@ impl GenerateCode for CrossCalling<'_> {
 }
 
 impl CrossCalling<'_> {
-    /// Generates code for conditionally compiling code only if the contract
-    /// is compiled as dependency.
-    fn generate_cfg(&self) -> Option<TokenStream2> {
-        if self.contract.config().is_compile_as_dependency_enabled() {
-            return None
-        }
-        Some(quote! {
-            #[cfg(feature = "ink-as-dependency")]
-        })
-    }
-
     /// Generates code for the ink! storage struct for cross-calling purposes.
     ///
     /// # Note
@@ -125,13 +66,14 @@ impl CrossCalling<'_> {
     /// forward all calls via ink!'s provided cross-calling infrastructure
     /// automatically over the chain.
     fn generate_storage(&self) -> TokenStream2 {
-        let cfg = self.generate_cfg();
+        let only_as_dependency =
+            self.generate_code_using::<generator::OnlyAsDependencyCfg>();
         let storage = self.contract.module().storage();
         let span = storage.span();
         let ident = storage.ident();
         let attrs = storage.attrs();
         quote_spanned!(span =>
-            #cfg
+            #only_as_dependency
             #( #attrs )*
             #[derive(
                 Clone,
@@ -158,10 +100,11 @@ impl CrossCalling<'_> {
     /// generated ink! storage struct for cross-calling work out-of-the-box
     /// for the cross-calling infrastructure.
     fn generate_standard_impls(&self) -> TokenStream2 {
-        let cfg = self.generate_cfg();
+        let only_as_dependency =
+            self.generate_code_using::<generator::OnlyAsDependencyCfg>();
         let ident = self.contract.module().storage().ident();
         quote! {
-            #cfg
+            #only_as_dependency
             const _: () = {
                 impl ::ink_env::call::FromAccountId<Environment> for #ident {
                     #[inline]
@@ -199,28 +142,26 @@ impl CrossCalling<'_> {
         format_ident!("__ink_CallForwarder")
     }
 
+    /// Create the identifier of an enforced ink! compilation error.
+    fn enforce_error_ident(error: EnforcedErrors) -> syn::Ident {
+        format_ident!(
+            "__ink_enforce_error_{}",
+            serde_hex::to_hex(&scale::Encode::encode(&error), false)
+        )
+    }
+
+    /// Returns the identifier for the generated `Out*` assoc. type.
+    fn out_assoc_type_ident(method_ident: &Ident) -> syn::Ident {
+        format_ident!("{}Out", method_ident.to_string().to_camel_case())
+    }
+
     fn generate_call_forwarder_trait_ghost_message(
         message: ir::CallableWithSelector<ir::Message>,
     ) -> TokenStream2 {
         let span = message.span();
         let ident = message.ident();
-        let output_ident = format_ident!("{}Out", ident.to_string().to_camel_case());
+        let output_ident = Self::out_assoc_type_ident(ident);
         let composed_selector = message.composed_selector().as_bytes().to_owned();
-        let trait_ident = message
-            .item_impl()
-            .trait_ident()
-            .expect("trait identifier must exist")
-            .to_string();
-        let linker_error = EnforcedErrors::CannotCallTraitMessage {
-            trait_ident,
-            message_ident: ident.to_string(),
-            message_selector: composed_selector,
-            message_mut: message.receiver().is_ref_mut(),
-        };
-        let linker_error_ident = format_ident!(
-            "__ink_enforce_error_{}",
-            serde_hex::to_hex(&scale::Encode::encode(&linker_error), false)
-        );
         let attrs = message.attrs();
         let input_bindings = message
             .inputs()
@@ -231,6 +172,18 @@ impl CrossCalling<'_> {
             .inputs()
             .map(|pat_type| &*pat_type.ty)
             .collect::<Vec<_>>();
+        let trait_ident = message
+            .item_impl()
+            .trait_ident()
+            .expect("trait identifier must exist")
+            .to_string();
+        let linker_error_ident =
+            Self::enforce_error_ident(EnforcedErrors::CannotCallTraitMessage {
+                trait_ident,
+                message_ident: ident.to_string(),
+                message_selector: composed_selector,
+                message_is_mut: message.receiver().is_ref_mut(),
+            });
         let output_ty = message
             .output()
             .cloned()
@@ -266,7 +219,7 @@ impl CrossCalling<'_> {
     ) -> TokenStream2 {
         let span = message.span();
         let ident = message.ident();
-        let output_ident = format_ident!("{}Out", ident.to_string().to_camel_case());
+        let output_ident = Self::out_assoc_type_ident(ident);
         let composed_selector = message.composed_selector().as_bytes().to_owned();
         let attrs = message.attrs();
         let input_bindings = message
@@ -288,9 +241,9 @@ impl CrossCalling<'_> {
             Some(_) => None,
             None => Some(quote! { pub }),
         };
-        let receiver = match message.receiver() {
-            ir::Receiver::Ref => Some(quote! { &self }),
-            ir::Receiver::RefMut => Some(quote! { &mut self }),
+        let mut_tok = match message.receiver() {
+            ir::Receiver::Ref => None,
+            ir::Receiver::RefMut => Some(quote! { mut }),
         };
         quote_spanned!(span=>
             #[allow(clippy::type_complexity)]
@@ -306,7 +259,7 @@ impl CrossCalling<'_> {
             #( #attrs )*
             #[inline]
             #pub_tok fn #ident(
-                #receiver #(, #input_bindings : #input_types )*
+                & #mut_tok #(, #input_bindings : #input_types )*
             ) -> Self::#output_ident {
                 ::ink_env::call::build_call::<Environment>()
                     .callee(::ink_lang::ToAccountId::to_account_id(self.contract))
@@ -556,9 +509,10 @@ impl CrossCalling<'_> {
         let storage_ident = self.contract.module().storage().ident();
         let impl_blocks_ref = self.generate_call_forwarder_impl_blocks(false);
         let impl_blocks_refmut = self.generate_call_forwarder_impl_blocks(true);
-        let cfg = self.generate_cfg();
+        let only_as_dependency =
+            self.generate_code_using::<generator::OnlyAsDependencyCfg>();
         quote! {
-            #cfg
+            #only_as_dependency
             const _: () = {
                 impl<'a> ::ink_lang::ForwardCall for &'a #storage_ident {
                     type Forwarder = #forwarder_ident<&'a #storage_ident>;
@@ -700,7 +654,8 @@ impl CrossCalling<'_> {
 
     fn generate_trait_impl_block(&self, impl_block: &ir::ItemImpl) -> TokenStream2 {
         assert!(impl_block.trait_path().is_some());
-        let cfg = self.generate_cfg();
+        let only_as_dependency =
+            self.generate_code_using::<generator::OnlyAsDependencyCfg>();
         let span = impl_block.span();
         let attrs = impl_block.attrs();
         let trait_path = impl_block
@@ -732,10 +687,10 @@ impl CrossCalling<'_> {
         );
         let checksum = u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]) as usize;
         quote_spanned!(span =>
-            #cfg
+            #only_as_dependency
             unsafe impl ::ink_lang::CheckedInkTrait<[(); #checksum]> for #self_type {}
 
-            #cfg
+            #only_as_dependency
             #( #attrs )*
             impl #trait_path for #self_type {
                 type __ink_Checksum = [(); #checksum];
@@ -842,7 +797,8 @@ impl CrossCalling<'_> {
 
     fn generate_inherent_impl_block(&self, impl_block: &ir::ItemImpl) -> TokenStream2 {
         assert!(impl_block.trait_path().is_none());
-        let cfg = self.generate_cfg();
+        let only_as_dependency =
+            self.generate_code_using::<generator::OnlyAsDependencyCfg>();
         let span = impl_block.span();
         let attrs = impl_block.attrs();
         let self_type = impl_block.self_type();
@@ -853,7 +809,7 @@ impl CrossCalling<'_> {
             Self::generate_inherent_impl_block_constructor(constructor)
         });
         quote_spanned!(span =>
-            #cfg
+            #only_as_dependency
             #( #attrs )*
             impl #self_type {
                 #( #messages )*

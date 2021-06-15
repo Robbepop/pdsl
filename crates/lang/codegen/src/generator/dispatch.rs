@@ -47,17 +47,12 @@ use syn::spanned::Spanned as _;
 pub struct Dispatch<'a> {
     contract: &'a ir::Contract,
 }
-
-impl AsRef<ir::Contract> for Dispatch<'_> {
-    fn as_ref(&self) -> &ir::Contract {
-        self.contract
-    }
-}
+impl_as_ref_for_generator!(Dispatch);
 
 impl GenerateCode for Dispatch<'_> {
     fn generate_code(&self) -> TokenStream2 {
         let no_cross_calling_cfg =
-            self.generate_code_using::<generator::CrossCallingConflictCfg>();
+            self.generate_code_using::<generator::NotAsDependencyCfg>();
         let entry_points = self.generate_entry_points();
         let dispatch_using_mode = self.generate_dispatch_using_mode();
         let dispatch_trait_impl_namespaces = self.generate_trait_impl_namespaces();

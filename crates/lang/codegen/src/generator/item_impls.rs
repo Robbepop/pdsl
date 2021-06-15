@@ -34,12 +34,7 @@ use syn::spanned::Spanned as _;
 pub struct ItemImpls<'a> {
     contract: &'a ir::Contract,
 }
-
-impl AsRef<ir::Contract> for ItemImpls<'_> {
-    fn as_ref(&self) -> &ir::Contract {
-        self.contract
-    }
-}
+impl_as_ref_for_generator!(ItemImpls);
 
 impl GenerateCode for ItemImpls<'_> {
     fn generate_code(&self) -> TokenStream2 {
@@ -49,7 +44,7 @@ impl GenerateCode for ItemImpls<'_> {
             .impls()
             .map(|item_impl| self.generate_item_impl(item_impl));
         let no_cross_calling_cfg =
-            self.generate_code_using::<generator::CrossCallingConflictCfg>();
+            self.generate_code_using::<generator::NotAsDependencyCfg>();
         quote! {
             #no_cross_calling_cfg
             const _: () = {
@@ -157,6 +152,7 @@ impl ItemImpls<'_> {
             #( #attrs )*
             impl #trait_path for #self_type {
                 type __ink_Checksum = [(); #checksum];
+                type __ink_ConcreteImplementer = ::ink_lang::NoConcreteImplementer;
 
                 #( #constructors )*
                 #( #messages )*

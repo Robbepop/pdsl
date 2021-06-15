@@ -36,6 +36,7 @@ use self::attrs::{
     first_ink_attribute,
     partition_attributes,
     sanitize_attributes,
+    sanitize_optional_attributes,
     AttributeArg,
     AttributeArgKind,
     AttributeFrag,
@@ -76,12 +77,16 @@ pub use self::{
         IterEvents,
         IterItemImpls,
     },
-    selector::Selector,
+    selector::{
+        Selector,
+        TraitPrefix,
+    },
     trait_def::{
         InkTrait,
         InkTraitConstructor,
         InkTraitItem,
         InkTraitMessage,
         IterInkTraitItems,
+        InputsIter as TraitItemInputsIter,
     },
 };

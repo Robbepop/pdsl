@@ -31,7 +31,7 @@ fn max_n(args: &[TokenStream2]) -> TokenStream2 {
         Some((head, rest)) => {
             let rest = max_n(rest);
             quote! {
-                [#head, #rest][(#head < #rest) as usize]
+                [#head, #rest][(#head < #rest) as ::core::primitive::usize]
             }
         }
         None => quote! { 0u64 },
@@ -103,8 +103,8 @@ fn spread_layout_struct_derive(s: &synstructure::Structure) -> TokenStream2 {
     s.gen_impl(quote! {
         gen impl ::ink_storage::traits::SpreadLayout for @Self {
             #[allow(unused_comparisons)]
-            const FOOTPRINT: u64 = #footprint_body;
-            const REQUIRES_DEEP_CLEAN_UP: bool = #requires_deep_clean_up_body;
+            const FOOTPRINT: ::core::primitive::u64 = #footprint_body;
+            const REQUIRES_DEEP_CLEAN_UP: ::core::primitive::bool = #requires_deep_clean_up_body;
 
             fn pull_spread(__key_ptr: &mut ::ink_storage::traits::KeyPtr) -> Self {
                 #pull_body
@@ -154,7 +154,7 @@ fn spread_layout_enum_derive(s: &synstructure::Structure) -> TokenStream2 {
         });
         quote! {
             #pat => {
-                { <u8 as ::ink_storage::traits::SpreadLayout>::push_spread(&#index, __key_ptr); }
+                { <::core::primitive::u8 as ::ink_storage::traits::SpreadLayout>::push_spread(&#index, __key_ptr); }
                 #(
                     { #fields }
                 )*
@@ -169,12 +169,12 @@ fn spread_layout_enum_derive(s: &synstructure::Structure) -> TokenStream2 {
     s.gen_impl(quote! {
         gen impl ::ink_storage::traits::SpreadLayout for @Self {
             #[allow(unused_comparisons)]
-            const FOOTPRINT: u64 = 1 + #footprint_body;
+            const FOOTPRINT: ::core::primitive::u64 = 1 + #footprint_body;
 
-            const REQUIRES_DEEP_CLEAN_UP: bool = #requires_deep_clean_up_body;
+            const REQUIRES_DEEP_CLEAN_UP: ::core::primitive::bool = #requires_deep_clean_up_body;
 
             fn pull_spread(__key_ptr: &mut ::ink_storage::traits::KeyPtr) -> Self {
-                match <u8 as ::ink_storage::traits::SpreadLayout>::pull_spread(__key_ptr) {
+                match <::core::primitive::u8 as ::ink_storage::traits::SpreadLayout>::pull_spread(__key_ptr) {
                     #pull_body
                     _ => unreachable!("encountered invalid enum discriminant"),
                 }

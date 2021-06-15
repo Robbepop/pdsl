@@ -484,7 +484,7 @@ impl core::fmt::Display for AttributeArg {
 }
 
 /// An ink! namespace applicable to a trait implementation block.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Namespace {
     /// The underlying bytes.
     bytes: Vec<u8>,
@@ -585,6 +585,7 @@ where
 /// - If there are duplicate ink! attributes.
 /// - If the first ink! attribute is not matching the expected.
 /// - If there are conflicting ink! attributes.
+/// - if there are no ink! attributes.
 pub fn sanitize_attributes<I, C>(
     parent_span: Span,
     attrs: I,
@@ -608,6 +609,45 @@ where
     })?;
     normalized.ensure_no_conflicts(|arg| is_conflicting_attr(arg))?;
     Ok((normalized, other_attrs))
+}
+
+/// Sanitizes the given optional attributes.
+///
+/// This partitions the attributes into ink! and non-ink! attributes.
+/// If there are ink! attributes they are normalized and deduplicated.
+/// Also checks to guard against conflicting ink! attributes are provided.
+///
+/// Returns the optional partitioned ink! and non-ink! attributes.
+///
+/// # Parameters
+///
+/// The `is_conflicting_attr` closure returns `Ok` if the attribute does not conflict,
+/// returns `Err(None)` if the attribute conflicts but without providing further reasoning
+/// and `Err(Some(reason))` if the attribute conflicts given additional context information.
+///
+/// # Errors
+///
+/// - If there are invalid ink! attributes.
+/// - If there are duplicate ink! attributes.
+/// - If there are conflicting ink! attributes.
+pub fn sanitize_optional_attributes<I, C>(
+    parent_span: Span,
+    attrs: I,
+    mut is_conflicting_attr: C,
+) -> Result<(Option<InkAttribute>, Vec<syn::Attribute>), syn::Error>
+where
+    I: IntoIterator<Item = syn::Attribute>,
+    C: FnMut(&ir::AttributeFrag) -> Result<(), Option<syn::Error>>,
+{
+    let (ink_attrs, rust_attrs) = ir::partition_attributes(attrs)?;
+    if ink_attrs.is_empty() {
+        return Ok((None, rust_attrs))
+    }
+    let normalized = ir::InkAttribute::from_expanded(ink_attrs).map_err(|err| {
+        err.into_combine(format_err!(parent_span, "at this invocation",))
+    })?;
+    normalized.ensure_no_conflicts(|arg| is_conflicting_attr(arg))?;
+    Ok((Some(normalized), rust_attrs))
 }
 
 impl Attribute {

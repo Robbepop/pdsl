@@ -22,9 +22,9 @@ fn field_layout<'a>(
         let ident = match field.ident.as_ref() {
             Some(ident) => {
                 let ident_str = ident.to_string();
-                quote! { Some(#ident_str) }
+                quote! { ::core::option::Option::Some(#ident_str) }
             }
-            None => quote! { None },
+            None => quote! { ::core::option::Option::None },
         };
         let ty = &field.ty;
         quote! {
