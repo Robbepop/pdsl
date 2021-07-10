@@ -91,8 +91,9 @@ check-std:
   <<:                              *test-refs
   script:
     - for crate in ${ALL_CRATES}; do
-        cargo check --verbose --all-features --manifest-path crates/${crate}/Cargo.toml;
+        echo "cargo check --verbose --all-features --manifest-path crates/${crate}/Cargo.toml" >> /tmp/cmds;
       done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
 
 check-wasm:
   stage:                           check
@@ -100,8 +101,53 @@ check-wasm:
   <<:                              *test-refs
   script:
     - for crate in ${ALSO_WASM_CRATES}; do
-        cargo check --verbose --no-default-features --target wasm32-unknown-unknown --manifest-path crates/${crate}/Cargo.toml;
+        echo "cargo check --verbose --no-default-features --target wasm32-unknown-unknown --manifest-path crates/${crate}/Cargo.toml" >> /tmp/cmds;
       done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
+
+clippy-std:
+  stage:                           check
+  <<:                              *docker-env
+  <<:                              *test-refs
+  script:
+    - for crate in ${ALL_CRATES}; do
+        echo "cargo clippy --verbose --all-features --manifest-path crates/${crate}/Cargo.toml -- -D warnings" >> /tmp/cmds;
+      done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
+
+clippy-wasm:
+  stage:                           check
+  <<:                              *docker-env
+  <<:                              *test-refs
+  script:
+    - for crate in ${ALSO_WASM_CRATES}; do
+        echo "cargo clippy --verbose --no-default-features --manifest-path crates/${crate}/Cargo.toml --target wasm32-unknown-unknown -- -D warnings" >> /tmp/cmds;
+      done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
+
+spellcheck:
+  stage:                          check
+  <<:                             *docker-env
+  <<:                             *test-refs
+  script:
+    - echo "cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1" >> /tmp/cmds
+    - for example in examples/*/; do
+        echo "cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 ${example}" >> /tmp/cmds;
+      done
+    - for contract in ${DELEGATOR_SUBCONTRACTS}; do
+        echo "cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 examples/delegator/${contract}/" >> /tmp/cmds;
+      done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
+
+fmt:
+  stage:                        check
+  <<:                           *docker-env
+  <<:                           *test-refs
+  script:
+    - cargo fmt --verbose --all -- --check
+
+    # For the UI tests we need to disable the license check
+    - cargo fmt --verbose --all -- --check --config=license_template_path="" crates/lang/macro/tests/ui/{pass,fail}/*.rs
 
 
 #### stage:                        workspace
@@ -115,8 +161,10 @@ build-std:
       artifacts:                   false
   script:
     - for crate in ${ALL_CRATES}; do
-        cargo build --verbose --all-features --release --manifest-path crates/${crate}/Cargo.toml;
+        echo "cargo build --verbose --all-features --release --manifest-path crates/${crate}/Cargo.toml" >> /tmp/cmds;
       done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
+
 
 build-wasm:
   stage:                           workspace
@@ -127,8 +175,9 @@ build-wasm:
       artifacts:                   false
   script:
     - for crate in ${ALSO_WASM_CRATES}; do
-        cargo build --verbose --no-default-features --release --target wasm32-unknown-unknown --manifest-path crates/${crate}/Cargo.toml;
+        echo "cargo build --verbose --no-default-features --release --target wasm32-unknown-unknown --manifest-path crates/${crate}/Cargo.toml" >> /tmp/cmds;
       done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
 
 test:
   stage:                           workspace
@@ -173,18 +222,6 @@ docs:
         -p ink_lang -p ink_lang_macro -p ink_lang_ir -p ink_lang_codegen
     - mv ${CARGO_TARGET_DIR}/doc ./crate-docs
 
-spellcheck:
-  stage:                           workspace
-  <<:                              *docker-env
-  <<:                              *test-refs
-  script:
-    - cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1
-    - for example in examples/*/; do
-        cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 ${example};
-      done
-    - for contract in ${DELEGATOR_SUBCONTRACTS}; do
-        cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 examples/delegator/${contract}/;
-      done
 
 codecov:
   stage:                           workspace
@@ -231,39 +268,6 @@ codecov:
     - rust-covfix lcov-lines.info --output lcov-lines-fixed.info
     - bash <(curl -s https://codecov.io/bash) -f lcov-lines-fixed.info
 
-clippy-std:
-  stage:                           workspace
-  <<:                              *docker-env
-  <<:                              *test-refs
-  needs:
-    - job:                         check-std
-      artifacts:                   false
-  script:
-    - for crate in ${ALL_CRATES}; do
-        cargo clippy --verbose --all-features --manifest-path crates/${crate}/Cargo.toml -- -D warnings;
-      done
-
-clippy-wasm:
-  stage:                           workspace
-  <<:                              *docker-env
-  <<:                              *test-refs
-  needs:
-    - job:                         check-wasm
-      artifacts:                   false
-  script:
-    - for crate in ${ALSO_WASM_CRATES}; do
-        cargo clippy --verbose --no-default-features --manifest-path crates/${crate}/Cargo.toml --target wasm32-unknown-unknown -- -D warnings;
-      done
-
-fmt:
-  stage:                           workspace
-  <<:                              *docker-env
-  <<:                              *test-refs
-  script:
-    - cargo fmt --verbose --all -- --check
-    # For the UI tests we need to disable the license check
-    - cargo fmt --verbose --all -- --check --config=license_template_path="" crates/lang/macro/tests/ui/{pass,fail}/*.rs
-
 
 #### stage:                        examples
 
@@ -303,11 +307,12 @@ examples-fmt:
   <<:                              *test-refs
   script:
     - for example in examples/*/; do
-        cargo fmt --verbose --manifest-path ${example}/Cargo.toml -- --check;
+        echo "cargo fmt --verbose --manifest-path ${example}/Cargo.toml -- --check" >> /tmp/cmds;
       done
     - for contract in ${DELEGATOR_SUBCONTRACTS}; do
-        cargo fmt --verbose --manifest-path examples/delegator/${contract}/Cargo.toml -- --check;
+        echo "cargo fmt --verbose --manifest-path examples/delegator/${contract}/Cargo.toml -- --check" >> /tmp/cmds;
       done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
 
 examples-clippy-std:
   stage:                           examples
@@ -318,11 +323,12 @@ examples-clippy-std:
       artifacts:                   false
   script:
     - for example in examples/*/; do
-        cargo clippy --verbose --manifest-path ${example}/Cargo.toml -- -D warnings;
+        echo "cargo clippy --verbose --manifest-path ${example}/Cargo.toml -- -D warnings" >> /tmp/cmds;
       done
     - for contract in ${DELEGATOR_SUBCONTRACTS}; do
-        cargo clippy --verbose --manifest-path examples/delegator/${contract}/Cargo.toml -- -D warnings;
+        echo "cargo clippy --verbose --manifest-path examples/delegator/${contract}/Cargo.toml -- -D warnings" >> /tmp/cmds;
       done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
 
 examples-clippy-wasm:
   stage:                           examples
@@ -330,11 +336,12 @@ examples-clippy-wasm:
   <<:                              *test-refs
   script:
     - for example in examples/*/; do
-        cargo clippy --verbose --manifest-path ${example}/Cargo.toml --no-default-features --target wasm32-unknown-unknown -- -D warnings;
+        echo "cargo clippy --verbose --manifest-path ${example}/Cargo.toml --no-default-features --target wasm32-unknown-unknown -- -D warnings" >> /tmp/cmds;
       done
     - for contract in ${DELEGATOR_SUBCONTRACTS}; do
-        cargo clippy --verbose --manifest-path examples/delegator/${contract}/Cargo.toml --no-default-features --target wasm32-unknown-unknown -- -D warnings;
+        echo "cargo clippy --verbose --manifest-path examples/delegator/${contract}/Cargo.toml --no-default-features --target wasm32-unknown-unknown -- -D warnings" >> /tmp/cmds;
       done
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
 
 examples-contract-build:
   stage:                           examples
@@ -343,41 +350,31 @@ examples-contract-build:
   script:
     - cargo contract -V
     - for example in examples/*/; do
-        pushd $example &&
-        cargo contract build &&
-        popd;
+        echo "cargo build --manifest-path ${example}/Cargo.toml" >> /tmp/cmds;
       done
     - for contract in ${DELEGATOR_SUBCONTRACTS}; do
-        pushd examples/delegator/$contract &&
-        cargo contract build &&
-        popd;
+        echo "cargo build --manifest-path examples/delegator/${contract}/Cargo.toml" >> /tmp/cmds;
       done
-
-examples-contract-build-delegator:
-    stage:                         examples
-    <<:                            *docker-env
-    <<:                            *test-refs
-    script:
-        - cargo contract -V
-        - cd examples/delegator/ && ./build-all.sh
+    - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
 
 examples-docs:
-  stage:                           examples
-  <<:                              *docker-env
-  <<:                              *test-refs
-  variables:
-    RUSTDOCFLAGS: -Dwarnings
-  script:
-    # `--document-private-items` needs to be in here because currently our contract macro
-    # puts the contract functions in a private module.
-    # Once https://github.com/paritytech/ink/issues/336 has been implemented we can get rid
-    # of this flag.
-    - for example in examples/*/; do
-        cargo doc --manifest-path ${example}/Cargo.toml --document-private-items --verbose --no-deps;
-      done
-    - for contract in ${DELEGATOR_SUBCONTRACTS}; do
-        cargo doc --manifest-path examples/delegator/${contract}/Cargo.toml --document-private-items --verbose --no-deps;
-      done
+    stage:                           examples
+    <<:                              *docker-env
+    <<:                              *test-refs
+    variables:
+        RUSTDOCFLAGS: -Dwarnings
+    script:
+        # `--document-private-items` needs to be in here because currently our contract macro
+        # puts the contract functions in a private module.
+        # Once https://github.com/paritytech/ink/issues/336 has been implemented we can get rid
+        # of this flag.
+        - for example in examples/*/; do
+            echo "cargo doc --manifest-path ${example}/Cargo.toml --document-private-items --verbose --no-deps" >> /tmp/cmds;
+          done
+        - for contract in ${DELEGATOR_SUBCONTRACTS}; do
+            echo "cargo doc --manifest-path examples/delegator/${contract}/Cargo.toml --document-private-items --verbose --no-deps" >> /tmp/cmds;
+          done
+        - cat /tmp/cmds | xargs -P 3 -I{} bash -c "{}"
 
 
 #### stage:                        ink-waterfall
