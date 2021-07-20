@@ -14,7 +14,7 @@ ink_lang = { version = "3.0.0-rc3", path = "../../../crates/lang", default-featu
 accumulator = { version = "3.0.0-rc3", path = "../accumulator", default-features = false, features = ["ink-as-dependency"] }
 
 scale = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["derive"] }
-scale-info = { version = "0.6", default-features = false, features = ["derive"], optional = true }
+scale-info = { version = "0.9", default-features = false, features = ["derive"], optional = true }
 
 [lib]
 name = "subber"

@@ -241,7 +241,9 @@ const _: () = {
         fn type_info() -> Type {
             Type::builder()
                 .path(Path::new("Key", "ink_primitives"))
-                .composite(Fields::unnamed().field_of::<[u8; 32]>("[u8; 32]"))
+                .composite(
+                    Fields::unnamed().field(|f| f.ty::<[u8; 32]>().type_name("[u8; 32]")),
+                )
         }
     }
 };

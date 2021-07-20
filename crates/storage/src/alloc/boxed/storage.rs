@@ -68,8 +68,11 @@ const _: () = {
                 // .type_params(vec![scale_info::MetaType::new::<T>()])
                 .composite(
                     scale_info::build::Fields::named()
-                        .field_of::<DynamicAllocation>("allocation", "DynamicAllocation"),
-                )
+                        .field(|f| f
+                            .name("allocation")
+                            .ty::<DynamicAllocation>()
+                            .type_name("DynamicAllocation"),
+                ))
         }
     }
 };

@@ -31,7 +31,7 @@ ink_lang = { version = "3.0.0-rc3", path = ".." }
 ink_prelude = { version = "3.0.0-rc3", path = "../../prelude/" }
 
 trybuild = "1.0.24"
-scale-info = { version = "0.6", default-features = false, features = ["derive"] }
+scale-info = { version = "0.9", default-features = false, features = ["derive"] }
 
 [lib]
 name = "ink_lang_macro"

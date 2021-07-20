@@ -16,7 +16,7 @@ scale = { package = "parity-scale-codec", version = "2.1", default-features = fa
 adder = { version = "3.0.0-rc3", path = "adder", default-features = false, features = ["ink-as-dependency"] }
 subber = { version = "3.0.0-rc3", path = "subber", default-features = false, features = ["ink-as-dependency"] }
 accumulator = { version = "3.0.0-rc3", path = "accumulator", default-features = false, features = ["ink-as-dependency"] }
-scale-info = { version = "0.6", default-features = false, features = ["derive"], optional = true }
+scale-info = { version = "0.9", default-features = false, features = ["derive"], optional = true }
 
 [lib]
 name = "delegator"

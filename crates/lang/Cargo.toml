@@ -28,7 +28,7 @@ static_assertions = "1.1"
 
 [dev-dependencies]
 # required for the doctest of `env_access::EnvAccess::instantiate_contract`
-scale-info = { version = "0.6", default-features = false, features = ["derive"] }
+scale-info = { version = "0.9", default-features = false, features = ["derive"] }
 
 [features]
 default = ["std"]
