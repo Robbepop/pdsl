@@ -323,7 +323,7 @@ where
     /// a `*mut Entry<T>` pointer that allows for exclusive access. This is safe
     /// within internal use only and should never be given outside the lazy entity
     /// for public `&self` methods.
-    unsafe fn lazily_load(&self, index: Index) -> NonNull<StorageEntry<V>> {
+    pub(crate) unsafe fn lazily_load(&self, index: Index) -> NonNull<StorageEntry<V>> {
         // SAFETY: We have put the whole `cached_entries` mapping into an
         //         `UnsafeCell` because of this caching functionality. The
         //         trick here is that due to using `Box<T>` internally

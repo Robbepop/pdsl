@@ -505,6 +505,14 @@ fn test_binary_search_implementation_details() {
 }
 
 #[test]
+fn test_split_at_mut() {
+    let mut b = vec_from_slice(&[1, 1, 2, 2, 3, 3, 3]);
+    let (mut a, mut c) = b.split_at_mut(3);
+    a[2] += 1;
+    c[0] += 1;
+}
+
+#[test]
 #[should_panic(expected = "encountered empty storage cell")]
 #[cfg(not(feature = "ink-experimental-engine"))]
 fn storage_is_cleared_completely_after_pull_lazy() {
