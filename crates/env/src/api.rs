@@ -566,10 +566,13 @@ pub fn debug_message(message: &str) {
 /// # Example
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # {
 /// use ink_env::hash::{Sha2x256, HashOutput};
 /// let input: &[u8] = &[13, 14, 15];
 /// let mut output = <Sha2x256 as HashOutput>::Type::default(); // 256-bit buffer
 /// let hash  = ink_env::hash_bytes::<Sha2x256>(input, &mut output);
+/// # }
 /// ```
 pub fn hash_bytes<H>(input: &[u8], output: &mut <H as HashOutput>::Type)
 where
@@ -585,6 +588,8 @@ where
 /// # Example
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # {
 /// # use ink_env::hash::{Sha2x256, HashOutput};
 /// const EXPECTED: [u8; 32] = [
 ///   243, 242, 58, 110, 205, 68, 100, 244, 187, 55, 188, 248,  29, 136, 145, 115,
@@ -594,6 +599,7 @@ where
 /// let mut output = <Sha2x256 as HashOutput>::Type::default(); // 256-bit buffer
 /// ink_env::hash_encoded::<Sha2x256, _>(&encodable, &mut output);
 /// assert_eq!(output, EXPECTED);
+/// # }
 /// ```
 pub fn hash_encoded<H, T>(input: &T, output: &mut <H as HashOutput>::Type)
 where

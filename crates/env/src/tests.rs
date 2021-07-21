@@ -28,6 +28,7 @@ fn test_hash_keccak_256() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_hash_sha2_256() {
     let mut output = [0x00_u8; 32];
     crate::hash_bytes::<crate::hash::Sha2x256>(TEST_INPUT, &mut output);

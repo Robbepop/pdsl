@@ -84,6 +84,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)]
     fn test_hash_sha2_256() {
         let mut output = [0x00_u8; 32];
         sha2_256(TEST_INPUT, &mut output);

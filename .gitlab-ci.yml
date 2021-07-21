@@ -26,6 +26,11 @@ variables:
   ALL_CRATES:                      "${PURELY_STD_CRATES} ${ALSO_WASM_CRATES}"
   DELEGATOR_SUBCONTRACTS:           "accumulator adder subber"
 
+  # Some crates run quite slow when tested under Miri. Mostly these are in
+  # the codegen, ast and ir, where no significant unsafe is used. So instead
+  # we just test the crates which end up in the actual contracts.
+  MIRI_CRATES:                      "ink_allocator ink_engine ink_env ink_lang ink_metadata ink_prelude ink_primitives ink_storage"
+
 workflow:
   rules:
     - if: $CI_COMMIT_TAG
@@ -104,6 +109,14 @@ check-wasm:
         cargo check --verbose --no-default-features --target wasm32-unknown-unknown --manifest-path crates/${crate}/Cargo.toml;
       done
 
+check-miri:
+  stage:                           check
+  <<:                              *docker-env
+  <<:                              *test-refs
+  script:
+    - for crate in ${MIRI_CRATES}; do
+        cargo miri test -p ${crate} -- --test-threads=1;
+      done
 
 #### stage:                        workspace
 

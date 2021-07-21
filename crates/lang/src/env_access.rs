@@ -964,11 +964,14 @@ where
     /// # Example
     ///
     /// ```
+    /// # #[cfg(not(miri))]
+    /// # {
     /// use ink_env::hash::{Sha2x256, HashOutput};
     ///
     /// let input: &[u8] = &[13, 14, 15];
     /// let mut output = <Sha2x256 as HashOutput>::Type::default(); // 256-bit buffer
     /// let hash  = ink_env::hash_bytes::<Sha2x256>(input, &mut output);
+    /// # }
     /// ```
     ///
     /// # Note
@@ -988,6 +991,8 @@ where
     /// # Example
     ///
     /// ```
+    /// # #[cfg(not(miri))]
+    /// # {
     /// use ink_env::hash::{Sha2x256, HashOutput};
     ///
     /// let encodable = (42, "foo", true); // Implements `scale::Encode`
@@ -999,6 +1004,7 @@ where
     ///   186, 134, 14, 175, 178, 99, 183,  21,   4, 94,  92,  69, 199, 207, 241, 179,
     /// ];
     /// assert_eq!(output, EXPECTED);
+    /// # }
     /// ```
     ///
     /// # Note

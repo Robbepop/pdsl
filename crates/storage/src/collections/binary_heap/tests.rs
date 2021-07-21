@@ -149,6 +149,8 @@ fn peek_works() {
 }
 
 #[test]
+// Disabled do to possible UB: https://github.com/paritytech/ink/issues/850
+#[cfg_attr(miri, ignore)]
 fn peek_and_pop_works() {
     let data = vec![2, 4, 6, 2, 1, 8, 10, 3, 5, 7, 0, 9, 1];
     let mut sorted = data.clone();
@@ -161,6 +163,8 @@ fn peek_and_pop_works() {
 }
 
 #[test]
+// Disabled do to possible UB: https://github.com/paritytech/ink/issues/850
+#[cfg_attr(miri, ignore)]
 fn peek_mut_works() {
     let data = vec![2, 4, 6, 2, 1, 8, 10, 3, 5, 7, 0, 9, 1];
     let mut heap = heap_from_slice(&data);
@@ -173,6 +177,8 @@ fn peek_mut_works() {
 }
 
 #[test]
+// Disabled do to possible UB: https://github.com/paritytech/ink/issues/850
+#[cfg_attr(miri, ignore)]
 fn peek_mut_pop_works() {
     let data = vec![2, 4, 6, 2, 1, 8, 10, 3, 5, 7, 0, 9, 1];
     let mut heap = heap_from_slice(&data);
@@ -186,6 +192,8 @@ fn peek_mut_pop_works() {
 }
 
 #[test]
+// Disabled do to possible UB: https://github.com/paritytech/ink/issues/850
+#[cfg_attr(miri, ignore)]
 fn min_heap_works() {
     let data = vec![2, 4, 6, 2, 1, 8, 10, 3, 5, 7, 0, 9, 1]
         .iter()
@@ -489,6 +497,8 @@ fn push_smallest_value_complexity_big_o_1() -> ink_env::Result<()> {
 }
 
 #[test]
+// Disabled do to possible UB: https://github.com/paritytech/ink/issues/850
+#[cfg_attr(miri, ignore)]
 fn pop_complexity_big_o_log_n() -> ink_env::Result<()> {
     // 1 elements overhead (#508) + elements.len + 1 vec overhead (#508) +
     // 1 vec.len + 1 vec.cell from which to pop
