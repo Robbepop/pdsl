@@ -38,3 +38,7 @@ mod bump;
 
 #[cfg(not(feature = "std"))]
 mod handlers;
+
+#[cfg(test)]
+#[macro_use(quickcheck)]
+extern crate quickcheck_macros;

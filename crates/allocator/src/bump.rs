@@ -121,7 +121,7 @@ impl InnerAlloc {
         let alloc_end = alloc_start.checked_add(aligned_size)?;
 
         if alloc_end > self.upper_limit {
-            let required_pages = (aligned_size + PAGE_SIZE - 1) / PAGE_SIZE;
+            let required_pages = required_pages(aligned_size)?;
             let page_start = self.request_pages(required_pages)?;
 
             self.upper_limit = required_pages
@@ -137,9 +137,30 @@ impl InnerAlloc {
     }
 }
 
+#[inline]
+fn required_pages(size: usize) -> Option<usize> {
+    size.checked_add(PAGE_SIZE - 1)
+        .and_then(|num| num.checked_div(PAGE_SIZE))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn can_alloc_no_bytes() {
+        let mut inner = InnerAlloc::new();
+
+        let layout = Layout::new::<()>();
+        assert_eq!(inner.alloc(layout), Some(0));
+
+        let expected_limit =
+            PAGE_SIZE * required_pages(layout.pad_to_align().size()).unwrap();
+        assert_eq!(inner.upper_limit, expected_limit);
+
+        let expected_alloc_start = std::mem::size_of::<()>();
+        assert_eq!(inner.next, expected_alloc_start);
+    }
 
     #[test]
     fn can_alloc_a_byte() {
@@ -148,7 +169,8 @@ mod tests {
         let layout = Layout::new::<u8>();
         assert_eq!(inner.alloc(layout), Some(0));
 
-        let expected_limit = PAGE_SIZE;
+        let expected_limit =
+            PAGE_SIZE * required_pages(layout.pad_to_align().size()).unwrap();
         assert_eq!(inner.upper_limit, expected_limit);
 
         let expected_alloc_start = std::mem::size_of::<u8>();
@@ -166,13 +188,15 @@ mod tests {
         }
 
         let layout = Layout::new::<FooBarBaz>();
+        let mut total_size = 0;
 
         let allocations = 3;
         for _ in 0..allocations {
             assert!(inner.alloc(layout).is_some());
+            total_size += layout.pad_to_align().size();
         }
 
-        let expected_limit = PAGE_SIZE;
+        let expected_limit = PAGE_SIZE * required_pages(total_size).unwrap();
         assert_eq!(inner.upper_limit, expected_limit);
 
         let expected_alloc_start = allocations * std::mem::size_of::<FooBarBaz>();
@@ -191,7 +215,8 @@ mod tests {
         let layout = Layout::new::<Foo>();
         assert_eq!(inner.alloc(layout), Some(0));
 
-        let expected_limit = PAGE_SIZE;
+        let expected_limit =
+            PAGE_SIZE * required_pages(layout.pad_to_align().size()).unwrap();
         assert_eq!(inner.upper_limit, expected_limit);
 
         let expected_alloc_start = std::mem::size_of::<Foo>();
@@ -221,7 +246,8 @@ mod tests {
         let layout = Layout::new::<Foo>();
         assert_eq!(inner.alloc(layout), Some(0));
 
-        let expected_limit = 2 * PAGE_SIZE;
+        let expected_limit =
+            PAGE_SIZE * required_pages(layout.pad_to_align().size()).unwrap();
         assert_eq!(inner.upper_limit, expected_limit);
 
         let expected_alloc_start = std::mem::size_of::<Foo>();
@@ -237,5 +263,102 @@ mod tests {
 
         let expected_alloc_start = 2 * PAGE_SIZE + std::mem::size_of::<u8>();
         assert_eq!(inner.next, expected_alloc_start);
+    }
+
+    // TODO: What I want to end up doing is turning this into a `quickcheck` test such that the
+    // random sized bytes and the number of allocations comes from `quickcheck`
+    #[test]
+    fn can_alloc_many_different_sized_chunks() {
+        let mut inner = InnerAlloc::new();
+
+        // let v = vec![16, 15, 3, 10, 10, 10, 5, 65];
+        let v = vec![32, 30, 6, 20, 20, 20, 10, 130];
+
+        let mut total_bytes_requested = 0;
+        let mut expected_alloc_start = 0;
+        let mut total_bytes_fragmented = 0;
+
+        for alloc in v {
+            let n = alloc * 1024;
+
+            let layout =
+                Layout::from_size_align(n, std::mem::size_of::<usize>()).unwrap();
+            let size = layout.pad_to_align().size();
+
+            let current_page_limit = required_pages(inner.next).unwrap() * PAGE_SIZE;
+            let is_too_big_for_current_page = inner.next + size > current_page_limit;
+
+            if is_too_big_for_current_page && inner.next != 0 {
+                let fragmented_in_current_page = current_page_limit % inner.next;
+                total_bytes_fragmented += fragmented_in_current_page;
+
+                // We expect our next allocation to be aligned to the start of the next page
+                // boundary
+                expected_alloc_start = inner.upper_limit;
+            }
+
+            assert_eq!(inner.alloc(layout), Some(expected_alloc_start));
+            total_bytes_requested += size;
+
+            let pages_required =
+                required_pages(total_bytes_requested + total_bytes_fragmented).unwrap();
+            let expected_limit = pages_required * PAGE_SIZE;
+            assert_eq!(inner.upper_limit, expected_limit);
+
+            expected_alloc_start = total_bytes_requested + total_bytes_fragmented;
+            assert_eq!(inner.next, expected_alloc_start);
+        }
+    }
+}
+
+#[cfg(test)]
+mod fuzz_tests {
+    use super::*;
+    use quickcheck::{
+        quickcheck,
+        TestResult,
+    };
+
+    // #[ignore]
+    #[quickcheck]
+    fn fuzz_should_allocate_random_bytes_that_do_not_overflow(n: usize) -> TestResult {
+        // If `n` is going to overflow we don't want to check it here (we'll check the overflow
+        // case in another test)
+        if n.checked_add(PAGE_SIZE - 1).is_none() {
+            return TestResult::discard()
+        }
+
+        let mut inner = InnerAlloc::new();
+
+        let layout = Layout::from_size_align(n, std::mem::size_of::<usize>()).unwrap();
+        let size = layout.pad_to_align().size();
+        assert_eq!(inner.alloc(layout), Some(0));
+
+        let expected_limit = PAGE_SIZE * required_pages(size).unwrap();
+        assert_eq!(inner.upper_limit, expected_limit);
+
+        let expected_alloc_start = size;
+        assert_eq!(inner.next, expected_alloc_start);
+
+        TestResult::passed()
+    }
+
+    // #[ignore]
+    #[quickcheck]
+    fn fuzz_should_not_allocate_if_it_overflows(n: usize) -> TestResult {
+        // In the last test we ignored the overflow case, now we ignore the valid cases
+        if n.checked_add(PAGE_SIZE - 1).is_some() {
+            return TestResult::discard()
+        }
+
+        if let Ok(layout) = Layout::from_size_align(n, std::mem::size_of::<usize>()) {
+            let mut inner = InnerAlloc::new();
+            assert_eq!(inner.alloc(layout), None);
+
+            TestResult::passed()
+        } else {
+            // We only want to test cases which can create a valid `Layout`
+            TestResult::discard()
+        }
     }
 }

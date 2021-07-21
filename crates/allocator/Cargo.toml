@@ -18,6 +18,10 @@ include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 cfg-if = "1.0"
 wee_alloc = { version = "0.4", default-features = false, optional = true }
 
+[dev-dependencies]
+quickcheck = "1"
+quickcheck_macros = "1"
+
 [features]
 default = ["std"]
 std = []
