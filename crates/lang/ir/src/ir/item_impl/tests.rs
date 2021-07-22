@@ -248,9 +248,56 @@ fn namespace_works() {
         })
         .unwrap();
     assert_eq!(
-        impl_block.namespace,
-        Some(ir::Namespace::from(
+        impl_block.namespace(),
+        Some(&ir::Namespace::from(
             "my_namespace".to_string().as_bytes().to_vec()
         ))
     )
+}
+
+#[test]
+fn metadata_name_default_works() {
+    let impl_block: ir::ItemImpl =
+        <ir::ItemImpl as TryFrom<syn::ItemImpl>>::try_from(syn::parse_quote! {
+            impl Storage for MyStorage {
+                #[ink(message)]
+                fn my_message(&self) {}
+            }
+        })
+        .unwrap();
+    assert_eq!(
+        impl_block.trait_metadata_name(),
+        Some(String::from("Storage"))
+    )
+}
+
+#[test]
+fn metadata_name_works() {
+    let impl_block: ir::ItemImpl =
+        <ir::ItemImpl as TryFrom<syn::ItemImpl>>::try_from(syn::parse_quote! {
+            #[ink(metadata_name = "Storage2")]
+            impl Storage for MyStorage {
+                #[ink(message)]
+                fn my_message(&self) {}
+            }
+        })
+        .unwrap();
+    assert_eq!(
+        impl_block.trait_metadata_name(),
+        Some(String::from("Storage2"))
+    )
+}
+
+#[test]
+fn metadata_name_empty_works() {
+    let impl_block: ir::ItemImpl =
+        <ir::ItemImpl as TryFrom<syn::ItemImpl>>::try_from(syn::parse_quote! {
+            #[ink(metadata_name = "")]
+            impl Storage for MyStorage {
+                #[ink(message)]
+                fn my_message(&self) {}
+            }
+        })
+        .unwrap();
+    assert_eq!(impl_block.trait_metadata_name(), None)
 }

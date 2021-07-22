@@ -108,6 +108,10 @@ where
         <C as Callable>::ident(self.callable)
     }
 
+    fn metadata_name(&self) -> String {
+        <C as Callable>::metadata_name(self.callable)
+    }
+
     fn user_provided_selector(&self) -> Option<&ir::Selector> {
         <C as Callable>::user_provided_selector(self.callable)
     }
@@ -151,6 +155,9 @@ pub trait Callable {
 
     /// Returns the identifier of the ink! callable.
     fn ident(&self) -> &Ident;
+
+    /// Returns the name of method for metadata.
+    fn metadata_name(&self) -> String;
 
     /// Returns the selector of the ink! callable if any has been manually set.
     fn user_provided_selector(&self) -> Option<&ir::Selector>;

@@ -80,6 +80,13 @@ pub struct ItemImpl {
     /// names. Generally can be used to change computation of message and
     /// constructor selectors of the implementation block.
     namespace: Option<ir::Namespace>,
+    /// A name of trait used in metadata.
+    ///
+    /// # Note
+    ///
+    /// User can provide name of trait which will be used inside of metadata.
+    /// But he is not obliged to implement this trait.
+    trait_metadata_name: Option<String>,
 }
 
 impl quote::ToTokens for ItemImpl {
@@ -293,6 +300,7 @@ impl TryFrom<syn::ItemImpl> for ItemImpl {
         }
         let (ink_attrs, other_attrs) = ir::partition_attributes(item_impl.attrs)?;
         let mut namespace = None;
+        let mut trait_metadata_name = None;
         if !ink_attrs.is_empty() {
             let normalized =
                 ir::InkAttribute::from_expanded(ink_attrs).map_err(|err| {
@@ -300,13 +308,14 @@ impl TryFrom<syn::ItemImpl> for ItemImpl {
                 })?;
             normalized.ensure_no_conflicts(|arg| {
                 match arg.kind() {
-                    ir::AttributeArg::Implementation | ir::AttributeArg::Namespace(_) => {
-                        Ok(())
-                    }
+                    ir::AttributeArg::Implementation
+                    | ir::AttributeArg::Namespace(_)
+                    | ir::AttributeArg::MetadataName(_) => Ok(()),
                     _ => Err(None),
                 }
             })?;
             namespace = normalized.namespace();
+            trait_metadata_name = normalized.metadata_name();
         }
         Ok(Self {
             attrs: other_attrs,
@@ -319,6 +328,7 @@ impl TryFrom<syn::ItemImpl> for ItemImpl {
             brace_token: item_impl.brace_token,
             items: impl_items,
             namespace,
+            trait_metadata_name,
         })
     }
 }
@@ -354,6 +364,26 @@ impl ItemImpl {
     /// Returns the namespace of the implementation block if any has been provided.
     pub fn namespace(&self) -> Option<&ir::Namespace> {
         self.namespace.as_ref()
+    }
+
+    /// Returns the trait metadata name of the implementation block if any has been provided.
+    ///
+    /// # Note
+    ///
+    /// If metadata name is `""`, it means that user wants to remove trait naming in metadata
+    pub fn trait_metadata_name(&self) -> Option<String> {
+        if self.trait_metadata_name.is_some() {
+            let name = self.trait_metadata_name.clone();
+            if name.as_ref().unwrap().is_empty() {
+                None
+            } else {
+                name
+            }
+        } else {
+            self.trait_path()
+                .map(|path| path.segments.last().map(|seg| seg.ident.to_string()))
+                .flatten()
+        }
     }
 
     /// Returns an iterator yielding the ink! messages of the implementation block.

@@ -27,6 +27,7 @@ fn compile_tests() {
     t.pass("tests/ui/pass/09-static-env.rs");
     t.pass("tests/ui/pass/10-derive-for-storage.rs");
     t.pass("tests/ui/pass/11-alias-storage-struct-impl.rs");
+    t.pass("tests/ui/pass/12-attributes.rs");
 
     t.compile_fail("tests/ui/fail/C-00-constructor-self-ref.rs");
     t.compile_fail("tests/ui/fail/C-01-constructor-self-mut.rs");

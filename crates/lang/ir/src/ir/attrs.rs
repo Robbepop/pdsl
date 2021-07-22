@@ -246,6 +246,16 @@ impl InkAttribute {
         })
     }
 
+    /// Returns the metadata name of the ink! attribute if any.
+    pub fn metadata_name(&self) -> Option<String> {
+        self.args().find_map(|arg| {
+            if let ir::AttributeArg::MetadataName(name) = arg.kind() {
+                return Some(name.clone())
+            }
+            None
+        })
+    }
+
     /// Returns `true` if the ink! attribute contains the `payable` argument.
     pub fn is_payable(&self) -> bool {
         self.args()
@@ -316,6 +326,8 @@ pub enum AttributeArgKind {
     Payable,
     /// `#[ink(selector = "0xDEADBEEF")]`
     Selector,
+    /// `#[ink(metadata_name = "transfer")]`
+    MetadataName,
     /// `#[ink(extension = N: u32)]`
     Extension,
     /// `#[ink(namespace = "my_namespace")]`
@@ -372,6 +384,11 @@ pub enum AttributeArg {
     /// Applied on ink! constructors or messages to manually control their
     /// selectors.
     Selector(Selector),
+    /// `#[ink(metadata_name = "transfer")]`
+    ///
+    /// Applied on ink! constructors, messages or implementation blocks
+    /// with traits to manually control their naming inside of metadata.
+    MetadataName(String),
     /// `#[ink(namespace = "my_namespace")]`
     ///
     /// Applied on ink! trait implementation blocks to disambiguate other trait
@@ -423,6 +440,9 @@ impl core::fmt::Display for AttributeArgKind {
             Self::Selector => {
                 write!(f, "selector = S:[u8; 4]")
             }
+            Self::MetadataName => {
+                write!(f, "selector = N:string")
+            }
             Self::Extension => {
                 write!(f, "extension = N:u32)")
             }
@@ -448,6 +468,7 @@ impl AttributeArg {
             Self::Constructor => AttributeArgKind::Constructor,
             Self::Payable => AttributeArgKind::Payable,
             Self::Selector(_) => AttributeArgKind::Selector,
+            Self::MetadataName(_) => AttributeArgKind::MetadataName,
             Self::Extension(_) => AttributeArgKind::Extension,
             Self::Namespace(_) => AttributeArgKind::Namespace,
             Self::Implementation => AttributeArgKind::Implementation,
@@ -469,6 +490,9 @@ impl core::fmt::Display for AttributeArg {
             Self::Payable => write!(f, "payable"),
             Self::Selector(selector) => {
                 write!(f, "selector = {:?}", selector.as_bytes())
+            }
+            Self::MetadataName(name) => {
+                write!(f, "metadata_name = {}", name)
             }
             Self::Extension(extension) => {
                 write!(f, "extension = {:?}", extension.into_u32())
@@ -796,6 +820,18 @@ impl TryFrom<syn::NestedMeta> for AttributeFrag {
                             }
                             return Err(format_err!(name_value, "expecteded 4-digit hexcode for `selector` argument, e.g. #[ink(selector = 0xC0FEBABE]"))
                         }
+                        if name_value.path.is_ident("metadata_name") {
+                            if let syn::Lit::Str(lit_str) = &name_value.lit {
+                                let name = lit_str.value();
+                                return Ok(AttributeFrag {
+                                    ast: meta,
+                                    arg: AttributeArg::MetadataName(
+                                        name,
+                                    ),
+                                })
+                            }
+                            return Err(format_err!(name_value, "expecteded string type for `metadata_name` argument, e.g. #[ink(metadata_name = \"transfer\")]"))
+                        }
                         if name_value.path.is_ident("namespace") {
                             if let syn::Lit::Str(lit_str) = &name_value.lit {
                                 let bytes = lit_str.value().into_bytes();
@@ -1070,6 +1106,18 @@ mod tests {
             },
             Ok(test::Attribute::Ink(vec![AttributeArg::Selector(
                 Selector::from_bytes([0xDE, 0xAD, 0xBE, 0xEF]),
+            )])),
+        );
+    }
+
+    #[test]
+    fn metadata_name_works() {
+        assert_attribute_try_from(
+            syn::parse_quote! {
+                #[ink(metadata_name = "transfer")]
+            },
+            Ok(test::Attribute::Ink(vec![AttributeArg::MetadataName(
+                String::from("transfer"),
             )])),
         );
     }

@@ -71,6 +71,12 @@ pub struct Constructor {
     /// This overrides the computed selector, even when using a manual namespace
     /// for the parent implementation block.
     selector: Option<ir::Selector>,
+    /// An optional user provided name of method for metadata.
+    ///
+    /// # Note
+    ///
+    /// This overrides the default name of method inside of metadata.
+    metadata_name: Option<String>,
 }
 
 impl quote::ToTokens for Constructor {
@@ -155,9 +161,9 @@ impl Constructor {
             &ir::AttributeArgKind::Constructor,
             |arg| {
                 match arg.kind() {
-                    ir::AttributeArg::Constructor | ir::AttributeArg::Selector(_) => {
-                        Ok(())
-                    }
+                    ir::AttributeArg::Constructor
+                    | ir::AttributeArg::MetadataName(_)
+                    | ir::AttributeArg::Selector(_) => Ok(()),
                     ir::AttributeArg::Payable => {
                         Err(Some(format_err!(
                             arg.span(),
@@ -180,8 +186,10 @@ impl TryFrom<syn::ImplItemMethod> for Constructor {
         Self::ensure_no_self_receiver(&method_item)?;
         let (ink_attrs, other_attrs) = Self::sanitize_attributes(&method_item)?;
         let selector = ink_attrs.selector();
-        Ok(Constructor {
+        let metadata_name = ink_attrs.metadata_name();
+        Ok(Self {
             selector,
+            metadata_name,
             item: syn::ImplItemMethod {
                 attrs: other_attrs,
                 ..method_item
@@ -197,6 +205,14 @@ impl Callable for Constructor {
 
     fn ident(&self) -> &Ident {
         &self.item.sig.ident
+    }
+
+    fn metadata_name(&self) -> String {
+        if self.metadata_name.is_some() {
+            self.metadata_name.clone().unwrap()
+        } else {
+            self.item.sig.ident.to_string()
+        }
     }
 
     fn user_provided_selector(&self) -> Option<&ir::Selector> {

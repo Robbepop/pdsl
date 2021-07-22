@@ -104,6 +104,12 @@ pub struct Message {
     /// This overrides the computed selector, even when using a manual namespace
     /// for the parent implementation block.
     selector: Option<ir::Selector>,
+    /// An optional user provided name of method for metadata.
+    ///
+    /// # Note
+    ///
+    /// This overrides the default name of method inside of metadata.
+    metadata_name: Option<String>,
 }
 
 impl quote::ToTokens for Message {
@@ -184,7 +190,8 @@ impl Message {
                 match arg.kind() {
                     ir::AttributeArg::Message
                     | ir::AttributeArg::Payable
-                    | ir::AttributeArg::Selector(_) => Ok(()),
+                    | ir::AttributeArg::Selector(_)
+                    | ir::AttributeArg::MetadataName(_) => Ok(()),
                     _ => Err(None),
                 }
             },
@@ -202,9 +209,11 @@ impl TryFrom<syn::ImplItemMethod> for Message {
         let (ink_attrs, other_attrs) = Self::sanitize_attributes(&method_item)?;
         let is_payable = ink_attrs.is_payable();
         let selector = ink_attrs.selector();
+        let metadata_name = ink_attrs.metadata_name();
         Ok(Self {
             is_payable,
             selector,
+            metadata_name,
             item: syn::ImplItemMethod {
                 attrs: other_attrs,
                 ..method_item
@@ -220,6 +229,14 @@ impl Callable for Message {
 
     fn ident(&self) -> &Ident {
         &self.item.sig.ident
+    }
+
+    fn metadata_name(&self) -> String {
+        if self.metadata_name.is_some() {
+            self.metadata_name.clone().unwrap()
+        } else {
+            self.item.sig.ident.to_string()
+        }
     }
 
     fn user_provided_selector(&self) -> Option<&ir::Selector> {
@@ -406,6 +423,15 @@ mod tests {
                 syn::parse_quote! {
                     #[ink(message)]
                     #[ink(selector = "0xDEADBEEF", payable)]
+                    pub fn my_message(&self) {}
+                },
+            ),
+            // Another ink! attribute, separate and normalized attribute.
+            (
+                true,
+                syn::parse_quote! {
+                    #[ink(message)]
+                    #[ink(selector = "0xDEADBEEF", payable, metadata_name = "your_message")]
                     pub fn my_message(&self) {}
                 },
             ),
