@@ -7,6 +7,7 @@ DApp
 ERC
 FFI
 Gnosis
+GPL
 KECCAK
 Polkadot
 RPC
@@ -57,8 +58,10 @@ stdout
 tuple
 unordered
 untyped
+v3
 validator
 variadic
+versa
 Verbatim
 metadata
 timestamp

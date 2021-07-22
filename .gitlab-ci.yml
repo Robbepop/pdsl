@@ -179,13 +179,8 @@ spellcheck:
   <<:                              *docker-env
   <<:                              *test-refs
   script:
-    - cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1
-    - for example in examples/*/; do
-        cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 ${example};
-      done
-    - for contract in ${DELEGATOR_SUBCONTRACTS}; do
-        cargo spellcheck check -vvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 examples/delegator/${contract}/;
-      done
+    - cargo spellcheck check -vvvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 -- recursive .
+    - cargo spellcheck check -vvvv --cfg=.config/cargo_spellcheck.toml --checkers hunspell --code 1 -- recursive examples/
 
 clippy-std:
   stage:                           workspace
